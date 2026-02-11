@@ -1,6 +1,5 @@
--- Create database (run this separately if needed)
-CREATE DATABASE IF NOT EXISTS incident_logs;
-USE incident_logs;
+-- Database-agnostic schema (database name specified at runtime)
+-- Usage: mysql -u root -p database_name < db/schema.sql
 
 -- Drop table if exists (for clean setup)
 DROP TABLE IF EXISTS incidents;
@@ -24,5 +23,3 @@ CREATE INDEX idx_severity ON incidents(severity);
 CREATE INDEX idx_status ON incidents(status);
 CREATE INDEX idx_source_ip ON incidents(source_ip);
 CREATE INDEX idx_type ON incidents(type);
-
-

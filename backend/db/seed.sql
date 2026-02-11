@@ -1,5 +1,3 @@
-USE incident_logs;
-
 -- Clear existing data
 TRUNCATE TABLE incidents;
 
