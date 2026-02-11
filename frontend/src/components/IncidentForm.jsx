@@ -126,10 +126,9 @@ function IncidentForm({ incident, onClose, onSuccess }) {
       onClose();
     } catch (err) {
       console.error('Error submitting incident:', err);
-      setSubmitError(
-        err.response?.data?.error || 
-        `Failed to ${isEditMode ? 'update' : 'create'} incident`
-      );
+      const baseMessage = `Failed to ${isEditMode ? 'update' : 'create'} incident`;
+      const serverError = err.response?.data?.error;
+      setSubmitError(serverError ? `${baseMessage}: ${serverError}` : baseMessage);
     } finally {
       setSubmitting(false);
     }
