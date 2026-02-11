@@ -9,18 +9,31 @@ const TYPE_OPTIONS = ['malware', 'brute_force', 'phishing', 'unauthorized_access
 // IP address validation regex (IPv4)
 const IP_REGEX = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
 
-// Format datetime for input (YYYY-MM-DDTHH:MM)
+// Format datetime for input (YYYY-MM-DDTHH:MM) using LOCAL time
 const formatDateTimeForInput = (dateString) => {
   if (!dateString) return '';
   const date = new Date(dateString);
-  return date.toISOString().slice(0, 16);
+  // Use local time components instead of UTC
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
-// Format datetime for API (YYYY-MM-DD HH:MM:SS)
+// Format datetime for API (YYYY-MM-DD HH:MM:SS) using LOCAL time
 const formatDateTimeForAPI = (dateString) => {
   if (!dateString) return '';
   const date = new Date(dateString);
-  return date.toISOString().slice(0, 19).replace('T', ' ');
+  // Use local time components instead of UTC
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
 function IncidentForm({ incident, onClose, onSuccess }) {
