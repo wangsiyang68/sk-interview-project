@@ -1,12 +1,12 @@
 import api from './api';
 
 /**
- * Fetch all incidents
- * @returns {Promise<Array>} Array of incident objects
+ * Fetch all incidents, sorted by ID ascending
+ * @returns {Promise<Array>} Array of incident objects sorted by ID
  */
 export const getAllIncidents = async () => {
   const response = await api.get('/incidents');
-  return response.data;
+  return response.data.sort((a, b) => a.id - b.id);
 };
 
 /**
