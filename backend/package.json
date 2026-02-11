@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "db:setup": "mysql -u root -p < db/schema.sql && mysql -u root -p < db/seed.sql"
+    "db:setup": "node db/setup.js --seed",
+    "db:setup:test": "cross-env DB_NAME=incident_logs_test node db/setup.js",
+    "test": "cross-env NODE_ENV=test jest --runInBand --forceExit",
+    "test:watch": "cross-env NODE_ENV=test jest --watch --runInBand"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -15,7 +18,10 @@
     "mysql2": "^3.9.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.3"
+    "cross-env": "^7.0.3",
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.3",
+    "supertest": "^6.3.4"
   }
 }
 
