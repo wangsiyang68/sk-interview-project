@@ -1,5 +1,16 @@
 const mysql = require('mysql2/promise');
-require('dotenv').config();
+const path = require('path');
+
+// Load environment variables based on NODE_ENV
+const envFile = process.env.NODE_ENV === 'test' ? '.env.test' : '.env';
+require('dotenv').config({ path: path.resolve(__dirname, '../../', envFile) });
+
+// Fallback to .env if .env.test doesn't set values
+if (process.env.NODE_ENV === 'test' && !process.env.DB_NAME) {
+  require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+  // Override DB_NAME for test
+  process.env.DB_NAME = 'incident_logs_test';
+}
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
@@ -17,7 +28,7 @@ async function testConnection(retries = 5, delay = 3000) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const connection = await pool.getConnection();
-      console.log('✅ MySQL connected successfully');
+      console.log(`✅ MySQL connected successfully to database: ${process.env.DB_NAME}`);
       connection.release();
       return true;
     } catch (error) {
@@ -35,5 +46,3 @@ async function testConnection(retries = 5, delay = 3000) {
 }
 
 module.exports = { pool, testConnection };
-
-
