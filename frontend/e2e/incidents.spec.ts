@@ -1,5 +1,9 @@
-import { test, expect } from '@playwright/test';
-import { resetDatabase, createIncident, clearAllIncidents, getAllIncidents } from './helpers/api.js';
+// e2e/incidents.spec.ts
+
+import { test, expect, Page, Dialog } from '@playwright/test';
+import { resetDatabase, createIncident, clearAllIncidents } from './helpers/api';
+
+// NOTE: Remove .js extension from import (TypeScript resolves .ts automatically)
 
 // Reset database before all tests
 test.beforeAll(async () => {
@@ -11,7 +15,7 @@ test.beforeAll(async () => {
 // ============================================
 test.describe('1. READ - Display Incidents Table', () => {
   
-  test('1.1 Table loads on page', async ({ page }) => {
+  test('1.1 Table loads on page', async ({ page }: { page: Page }) => {
     await page.goto('/');
     
     // Wait for table to be visible
@@ -227,7 +231,7 @@ test.describe('3. UPDATE - Edit Existing Incident', () => {
     
     // Verify IP is populated
     const ipInput = page.locator('input[name="source_ip"]');
-    await expect(ipInput).toHaveValue(firstRowIp.trim());
+    await expect(ipInput).toHaveValue(firstRowIp?.trim() ?? '');
   });
 
   test('3.3 Timestamp displays correctly (timezone test)', async ({ page }) => {
@@ -303,7 +307,7 @@ test.describe('3. UPDATE - Edit Existing Incident', () => {
     await page.click('button:has-text("Cancel")');
     
     // Verify original status unchanged
-    await expect(page.locator('tbody tr:first-child td:nth-child(6)')).toContainText(originalStatus.trim());
+    await expect(page.locator('tbody tr:first-child td:nth-child(6)')).toContainText(originalStatus?.trim() ?? '');
   });
 
   test('3.7 Validation on edit - clear required field', async ({ page }) => {
@@ -338,11 +342,12 @@ test.describe('4. DELETE - Remove Incident', () => {
     await page.waitForSelector('tbody tr');
     
     // Set up dialog listener
-    let dialogMessage = '';
-    page.on('dialog', async dialog => {
+    let dialogMessage: string = '';
+    page.on('dialog', async (dialog: Dialog) => {
       dialogMessage = dialog.message();
       await dialog.dismiss();
     });
+    
     
     // Click delete
     await page.click('tbody tr:first-child button:has-text("Delete")');
@@ -408,7 +413,7 @@ test.describe('4. DELETE - Remove Incident', () => {
     
     // Verify deleted ID is not in table
     const allIds = await page.locator('tbody tr td:first-child').allTextContents();
-    expect(allIds).not.toContain(firstId.trim());
+    expect(allIds).not.toContain(firstId?.trim() ?? '');
   });
 });
 
