@@ -39,10 +39,12 @@ test.describe('1. READ - Display Incidents Table', () => {
   test('1.3 Loading state displays', async ({ page }) => {
     // Intercept API to delay response
     await page.route('**/api/incidents', async route => {
+      // Wait for 500ms
       await new Promise(resolve => setTimeout(resolve, 500));
       await route.continue();
     });
     
+    // Go to the main page, which will load the incident table and trigger the above route intercept
     await page.goto('/');
     
     // Check loading text appears (may be brief)
