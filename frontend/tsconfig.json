@@ -31,7 +31,7 @@
       // Skip type checking of node_modules
       "skipLibCheck": true
     },
-    "include": ["src"],
+    "include": ["src", "e2e", "*.config.ts"],
     "references": [{ "path": "./tsconfig.node.json" }],
     "exclude": ["node_modules"]
 }
