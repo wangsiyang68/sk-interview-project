@@ -1,16 +1,39 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { createIncident, updateIncident } from '../services/incidentService';
+import type { 
+  Incident, 
+  IncidentFormData, 
+  FormErrors,
+  Severity,
+  Status,
+  IncidentType 
+} from '../types';
+import type { AxiosError } from 'axios';
 
-// Dropdown options
-const SEVERITY_OPTIONS = ['low', 'medium', 'high', 'critical'];
-const STATUS_OPTIONS = ['open', 'investigating', 'resolved', 'closed'];
-const TYPE_OPTIONS = ['malware', 'brute_force', 'phishing', 'unauthorized_access', 'data_exfiltration'];
+// Props interface
+interface IncidentFormProps {
+  incident: Incident | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+// API error response type
+interface ApiErrorResponse {
+  error?: string;
+}
+
+// Dropdown options with type safety
+const SEVERITY_OPTIONS: readonly Severity[] = ['low', 'medium', 'high', 'critical'] as const;
+const STATUS_OPTIONS: readonly Status[] = ['open', 'investigating', 'resolved', 'closed'] as const;
+const TYPE_OPTIONS: readonly IncidentType[] = [
+  'malware', 'brute_force', 'phishing', 'unauthorized_access', 'data_exfiltration'
+] as const;
 
 // IP address validation regex (IPv4)
 const IP_REGEX = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
 
 // Format datetime for input (YYYY-MM-DDTHH:MM) using LOCAL time
-const formatDateTimeForInput = (dateString) => {
+const formatDateTimeForInput = (dateString: string): string => {
   if (!dateString) return '';
   const date = new Date(dateString);
   // Use local time components instead of UTC
@@ -23,7 +46,7 @@ const formatDateTimeForInput = (dateString) => {
 };
 
 // Format datetime for API (YYYY-MM-DD HH:MM:SS) using LOCAL time
-const formatDateTimeForAPI = (dateString) => {
+const formatDateTimeForAPI = (dateString: string): string => {
   if (!dateString) return '';
   const date = new Date(dateString);
   // Use local time components instead of UTC
@@ -36,10 +59,10 @@ const formatDateTimeForAPI = (dateString) => {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
-function IncidentForm({ incident, onClose, onSuccess }) {
-  const isEditMode = Boolean(incident);
+function IncidentForm({ incident, onClose, onSuccess }: IncidentFormProps) {
+  const isEditMode: boolean = Boolean(incident);
   
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<IncidentFormData>({
     timestamp: '',
     source_ip: '',
     severity: 'medium',
@@ -48,9 +71,9 @@ function IncidentForm({ incident, onClose, onSuccess }) {
     description: '',
   });
   
-  const [errors, setErrors] = useState({});
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState(null);
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [submitting, setSubmitting] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Populate form when editing
   useEffect(() => {
@@ -66,17 +89,19 @@ function IncidentForm({ incident, onClose, onSuccess }) {
     }
   }, [incident]);
 
-  const handleChange = (e) => {
+  const handleChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ): void => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: null }));
+    if (errors[name as keyof FormErrors]) {
+      setErrors(prev => ({ ...prev, [name]: undefined }));
     }
   };
 
-  const validate = () => {
-    const newErrors = {};
+  const validate = (): boolean => {
+    const newErrors: FormErrors = {};
 
     if (!formData.timestamp) {
       newErrors.timestamp = 'Timestamp is required';
@@ -100,7 +125,7 @@ function IncidentForm({ incident, onClose, onSuccess }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setSubmitError(null);
 
@@ -116,7 +141,7 @@ function IncidentForm({ incident, onClose, onSuccess }) {
         timestamp: formatDateTimeForAPI(formData.timestamp),
       };
 
-      if (isEditMode) {
+      if (isEditMode && incident) {
         await updateIncident(incident.id, dataToSubmit);
       } else {
         await createIncident(dataToSubmit);
@@ -127,7 +152,8 @@ function IncidentForm({ incident, onClose, onSuccess }) {
     } catch (err) {
       console.error('Error submitting incident:', err);
       const baseMessage = `Failed to ${isEditMode ? 'update' : 'create'} incident`;
-      const serverError = err.response?.data?.error;
+      const axiosError = err as AxiosError<ApiErrorResponse>;
+      const serverError = axiosError.response?.data?.error;
       setSubmitError(serverError ? `${baseMessage}: ${serverError}` : baseMessage);
     } finally {
       setSubmitting(false);

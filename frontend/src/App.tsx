@@ -1,37 +1,29 @@
 import { useState } from 'react';
 import IncidentTable from './components/IncidentTable';
 import IncidentForm from './components/IncidentForm';
+import type { Incident } from './types';
 
-function App() {
-  // State for form modal visibility
-  const [showForm, setShowForm] = useState(false);
-  
-  // State for tracking which incident is being edited (null = create mode)
-  const [editingIncident, setEditingIncident] = useState(null);
-  
-  // State to trigger table refresh after CRUD operations
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+function App(): React.ReactNode {
+  const [showForm, setShowForm] = useState<boolean>(false);
+  const [editingIncident, setEditingIncident] = useState<Incident | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
-  // Open form for creating new incident
-  const handleAddNew = () => {
+  const handleAddNew = (): void => {
     setEditingIncident(null);
     setShowForm(true);
   };
 
-  // Open form for editing existing incident
-  const handleEdit = (incident) => {
+  const handleEdit = (incident: Incident): void => {
     setEditingIncident(incident);
     setShowForm(true);
   };
 
-  // Close the form modal
-  const handleCloseForm = () => {
+  const handleCloseForm = (): void => {
     setShowForm(false);
     setEditingIncident(null);
   };
 
-  // Refresh table after successful create/update
-  const handleSuccess = () => {
+  const handleSuccess = (): void => {
     setRefreshTrigger(prev => prev + 1);
   };
 

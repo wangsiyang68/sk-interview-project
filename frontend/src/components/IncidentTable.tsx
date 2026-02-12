@@ -1,16 +1,23 @@
 import { useState, useEffect } from 'react';
 import { getAllIncidents, deleteIncident } from '../services/incidentService';
+import type { Incident, Severity, Status } from '../types';
 
-// Severity color mapping
-const severityColors = {
+// Props interface
+interface IncidentTableProps {
+  onEdit: (incident: Incident) => void;
+  refreshTrigger: number;
+}
+
+// Type-safe severity color mapping
+const severityColors: Record<Severity, string> = {
   critical: 'bg-red-100 text-red-800 border-red-200',
   high: 'bg-orange-100 text-orange-800 border-orange-200',
   medium: 'bg-yellow-100 text-yellow-800 border-yellow-200',
   low: 'bg-green-100 text-green-800 border-green-200',
 };
 
-// Status color mapping
-const statusColors = {
+// Type-safe status color mapping
+const statusColors: Record<Status, string> = {
   open: 'bg-blue-100 text-blue-800',
   investigating: 'bg-purple-100 text-purple-800',
   resolved: 'bg-green-100 text-green-800',
@@ -18,21 +25,21 @@ const statusColors = {
 };
 
 // Format timestamp for display
-const formatTimestamp = (timestamp) => {
+const formatTimestamp = (timestamp: string): string => {
   return new Date(timestamp).toLocaleString();
 };
 
-function IncidentTable({ onEdit, refreshTrigger }) {
-  const [incidents, setIncidents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+function IncidentTable({ onEdit, refreshTrigger }: IncidentTableProps) {
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Fetch incidents on mount and when refreshTrigger changes
   useEffect(() => {
     fetchIncidents();
   }, [refreshTrigger]);
 
-  const fetchIncidents = async () => {
+  const fetchIncidents = async (): Promise<void> => {
     try {
       setLoading(true);
       setError(null);
@@ -46,7 +53,7 @@ function IncidentTable({ onEdit, refreshTrigger }) {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id: number): Promise<void> => {
     if (!window.confirm('Are you sure you want to delete this incident?')) {
       return;
     }
@@ -150,7 +157,7 @@ function IncidentTable({ onEdit, refreshTrigger }) {
                   {incident.status}
                 </span>
               </td>
-              <td className="px-4 py-3 text-sm text-slate-600 max-w-xs truncate" title={incident.description}>
+              <td className="px-4 py-3 text-sm text-slate-600 max-w-xs truncate" title={incident.description || undefined}>
                 {incident.description || '—'}
               </td>
               <td className="px-4 py-3 text-sm">
