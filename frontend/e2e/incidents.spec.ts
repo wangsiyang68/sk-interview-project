@@ -1455,3 +1455,489 @@ test.describe('9. PAGINATION - Table Pagination', () => {
   });
 });
 
+// ============================================
+// 10. MOBILE RESPONSIVE TESTS - Card View
+// ============================================
+test.describe('10. MOBILE - Responsive Card View', () => {
+  
+  test.beforeAll(async () => {
+    await resetDatabase();
+  });
+
+  test.describe('10.1 Responsive Layout Switching', () => {
+    
+    test('10.1.1 Table visible on desktop, hidden on mobile', async ({ page }) => {
+      // Desktop viewport
+      await page.setViewportSize({ width: 1024, height: 768 });
+      await page.goto('/');
+      await page.waitForSelector('table');
+      
+      // Table should be visible
+      await expect(page.locator('table')).toBeVisible();
+      
+      // Cards should be hidden (the container exists but has display:none via md:hidden)
+      await expect(page.getByTestId('incident-card').first()).not.toBeVisible();
+    });
+
+    test('10.1.2 Cards visible on mobile, table hidden', async ({ page }) => {
+      // Mobile viewport
+      await page.setViewportSize({ width: 375, height: 667 });
+      await page.goto('/');
+      
+      // Wait for cards to load
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      // Cards should be visible
+      await expect(page.getByTestId('incident-card').first()).toBeVisible();
+      
+      // Table should be hidden
+      await expect(page.locator('table')).not.toBeVisible();
+    });
+
+    test('10.1.3 Layout switches when viewport changes', async ({ page }) => {
+      // Start with desktop
+      await page.setViewportSize({ width: 1024, height: 768 });
+      await page.goto('/');
+      await page.waitForSelector('table');
+      
+      await expect(page.locator('table')).toBeVisible();
+      
+      // Switch to mobile
+      await page.setViewportSize({ width: 375, height: 667 });
+      
+      // Cards should now be visible, table hidden
+      await expect(page.getByTestId('incident-card').first()).toBeVisible();
+      await expect(page.locator('table')).not.toBeVisible();
+      
+      // Switch back to desktop
+      await page.setViewportSize({ width: 1024, height: 768 });
+      
+      // Table should be visible again
+      await expect(page.locator('table')).toBeVisible();
+    });
+  });
+
+  test.describe('10.2 Card Content Display', () => {
+    
+    test.use({ viewport: { width: 375, height: 667 } }); // iPhone SE size
+
+    test('10.2.1 Card displays severity badge', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      const firstCard = page.getByTestId('incident-card').first();
+      
+      // Should have severity badge with one of the severity values
+      const severityBadge = firstCard.locator('span').filter({ hasText: /^(critical|high|medium|low)$/ }).first();
+      await expect(severityBadge).toBeVisible();
+    });
+
+    test('10.2.2 Card displays status badge', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      const firstCard = page.getByTestId('incident-card').first();
+      
+      // Should have status badge
+      const statusBadge = firstCard.locator('span').filter({ hasText: /^(open|investigating|resolved|closed)$/ }).first();
+      await expect(statusBadge).toBeVisible();
+    });
+
+    test('10.2.3 Card displays incident ID', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      const firstCard = page.getByTestId('incident-card').first();
+      
+      // Should have ID with # prefix
+      await expect(firstCard.locator('text=/#\\d+/')).toBeVisible();
+    });
+
+    test('10.2.4 Card displays timestamp', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      const firstCard = page.getByTestId('incident-card').first();
+      
+      // Should have Time label and a date value
+      await expect(firstCard.locator('text=Time')).toBeVisible();
+    });
+
+    test('10.2.5 Card displays source IP', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      const firstCard = page.getByTestId('incident-card').first();
+      
+      // Should have Source IP label
+      await expect(firstCard.locator('text=Source IP')).toBeVisible();
+      
+      // Should have IP address format
+      await expect(firstCard.locator('text=/\\d+\\.\\d+\\.\\d+\\.\\d+/')).toBeVisible();
+    });
+
+    test('10.2.6 Card displays incident type', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      const firstCard = page.getByTestId('incident-card').first();
+      
+      // Should have Type label
+      await expect(firstCard.locator('text=Type')).toBeVisible();
+    });
+
+    test('10.2.7 Card displays action buttons', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      const firstCard = page.getByTestId('incident-card').first();
+      
+      // Should have Edit and Delete buttons
+      await expect(firstCard.locator('button', { hasText: 'Edit' })).toBeVisible();
+      await expect(firstCard.locator('button', { hasText: 'Delete' })).toBeVisible();
+    });
+
+    test('10.2.8 Card has severity-colored left border', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      const firstCard = page.getByTestId('incident-card').first();
+      
+      // Card should have border-l-4 class (left border)
+      await expect(firstCard).toHaveClass(/border-l-4/);
+    });
+  });
+
+  test.describe('10.3 Card Edit Functionality', () => {
+    
+    test.use({ viewport: { width: 375, height: 667 } });
+
+    test.beforeEach(async () => {
+      await resetDatabase();
+    });
+
+    test('10.3.1 Clicking Edit opens form modal', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      // Click Edit on first card
+      await page.getByTestId('incident-card').first().locator('button', { hasText: 'Edit' }).click();
+      
+      // Form modal should open in edit mode
+      await expect(page.locator('h2', { hasText: 'Edit Incident' })).toBeVisible();
+    });
+
+    test('10.3.2 Edit form pre-populates with card data', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      // Get IP from first card
+      const firstCard = page.getByTestId('incident-card').first();
+      const cardIpText = await firstCard.locator('text=/\\d+\\.\\d+\\.\\d+\\.\\d+/').textContent();
+      
+      // Click Edit
+      await firstCard.locator('button', { hasText: 'Edit' }).click();
+      
+      // Form should have the same IP
+      const ipInput = page.locator('input[name="source_ip"]');
+      await expect(ipInput).toHaveValue(cardIpText?.trim() ?? '');
+    });
+
+    test('10.3.3 Successful edit updates card', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      // Click Edit on first card
+      await page.getByTestId('incident-card').first().locator('button', { hasText: 'Edit' }).click();
+      
+      // Change status to closed
+      await page.selectOption('select[name="status"]', 'closed');
+      
+      // Submit
+      await page.click('button:has-text("Update Incident")');
+      
+      // Wait for modal to close
+      await expect(page.locator('h2', { hasText: 'Edit Incident' })).not.toBeVisible();
+      
+      // First card should now show 'closed' status
+      await expect(page.getByTestId('incident-card').first()).toContainText('closed');
+    });
+  });
+
+  test.describe('10.4 Card Delete Functionality', () => {
+    
+    test.use({ viewport: { width: 375, height: 667 } });
+
+    test.beforeEach(async () => {
+      await resetDatabase();
+    });
+
+    test('10.4.1 Clicking Delete shows confirmation', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      let dialogMessage = '';
+      page.on('dialog', async dialog => {
+        dialogMessage = dialog.message();
+        await dialog.dismiss();
+      });
+      
+      // Click Delete on first card
+      await page.getByTestId('incident-card').first().locator('button', { hasText: 'Delete' }).click();
+      
+      // Should have shown confirmation dialog
+      expect(dialogMessage).toContain('sure');
+    });
+
+    test('10.4.2 Cancel delete keeps card', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      const initialCount = await page.getByTestId('incident-card').count();
+      
+      // Dismiss dialog (cancel)
+      page.on('dialog', dialog => dialog.dismiss());
+      
+      // Click Delete
+      await page.getByTestId('incident-card').first().locator('button', { hasText: 'Delete' }).click();
+      
+      // Wait a moment
+      await page.waitForTimeout(500);
+      
+      // Card count should be unchanged
+      await expect(page.getByTestId('incident-card')).toHaveCount(initialCount);
+    });
+
+    test('10.4.3 Confirm delete removes card', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      const initialCount = await page.getByTestId('incident-card').count();
+      
+      // Accept dialog (confirm)
+      page.on('dialog', dialog => dialog.accept());
+      
+      // Click Delete
+      await page.getByTestId('incident-card').first().locator('button', { hasText: 'Delete' }).click();
+      
+      // Card count should decrease
+      await expect(page.getByTestId('incident-card')).toHaveCount(initialCount - 1);
+    });
+  });
+
+  test.describe('10.5 Mobile Sort Controls', () => {
+    
+    test.use({ viewport: { width: 375, height: 667 } });
+
+    test.beforeEach(async () => {
+      await clearAllIncidents();
+      
+      // Create incidents with varied timestamps and severities
+      await createIncident({
+        timestamp: '2026-01-15 10:00:00',
+        source_ip: '192.168.1.1',
+        severity: 'critical',
+        type: 'malware',
+        status: 'open',
+        description: 'Critical incident',
+      });
+      await createIncident({
+        timestamp: '2026-01-10 10:00:00',
+        source_ip: '192.168.1.2',
+        severity: 'low',
+        type: 'phishing',
+        status: 'open',
+        description: 'Low incident',
+      });
+      await createIncident({
+        timestamp: '2026-01-20 10:00:00',
+        source_ip: '192.168.1.3',
+        severity: 'high',
+        type: 'brute_force',
+        status: 'open',
+        description: 'High incident',
+      });
+    });
+
+    test.afterAll(async () => {
+      await resetDatabase();
+    });
+
+    test('10.5.1 Sort controls are visible on mobile', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      // Sort by label should be visible
+      await expect(page.locator('text=Sort by:')).toBeVisible();
+      
+      // Time and Severity sort buttons should be visible (use .first() to get visible one)
+      // The mobile sort buttons are in the "block md:hidden" container
+      await expect(page.getByRole('button', { name: 'Time' }).filter({ visible: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Severity' }).filter({ visible: true })).toBeVisible();
+    });
+
+    test('10.5.2 Clicking Time sort button sorts cards', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      // Click Time sort button (visible one)
+      const timeSortBtn = page.getByRole('button', { name: 'Time' }).filter({ visible: true });
+      await timeSortBtn.click();
+      
+      // Should show sort indicator
+      await expect(timeSortBtn).toContainText('▲');
+    });
+
+    test('10.5.3 Clicking Severity sort button sorts cards', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      // Click Severity sort button (visible one)
+      const severitySortBtn = page.getByRole('button', { name: 'Severity' }).filter({ visible: true });
+      await severitySortBtn.click();
+      
+      // Should show sort indicator
+      await expect(severitySortBtn).toContainText('▲');
+    });
+
+    test('10.5.4 Sort applies to cards correctly', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      // Sort by severity descending (click twice) - use visible button
+      const severitySortBtn = page.getByRole('button', { name: 'Severity' }).filter({ visible: true });
+      await severitySortBtn.click();
+      await severitySortBtn.click();
+      
+      // Wait for sort to apply
+      await page.waitForTimeout(100);
+      
+      // Get all severity badges in order
+      const cards = page.getByTestId('incident-card');
+      const firstCardSeverity = await cards.first().locator('span').filter({ hasText: /^(critical|high|medium|low)$/ }).first().textContent();
+      
+      // First card should be critical (highest severity)
+      expect(firstCardSeverity?.toLowerCase()).toBe('critical');
+    });
+  });
+
+  test.describe('10.6 Mobile Pagination', () => {
+    
+    test.use({ viewport: { width: 375, height: 667 } });
+
+    test.beforeEach(async () => {
+      await clearAllIncidents();
+      // Create 15 incidents for pagination testing
+      for (let i = 0; i < 15; i++) {
+        await createIncident({
+          timestamp: `2026-01-${String(i % 28 + 1).padStart(2, '0')} 10:00:00`,
+          source_ip: `192.168.1.${i + 1}`,
+          severity: (['low', 'medium', 'high', 'critical'] as const)[i % 4],
+          type: 'malware',
+          status: 'open',
+          description: `Mobile test incident #${i + 1}`,
+        });
+      }
+    });
+
+    test.afterAll(async () => {
+      await resetDatabase();
+    });
+
+    test('10.6.1 Pagination controls visible on mobile', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      // Pagination controls should be visible
+      await expect(page.getByTestId('page-indicator')).toBeVisible();
+      await expect(page.locator('button[title="Next page"]')).toBeVisible();
+    });
+
+    test('10.6.2 Cards are paginated correctly', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      // Default 10 per page - should show 10 cards
+      await expect(page.getByTestId('incident-card')).toHaveCount(10);
+      
+      // Page indicator should show 1 / 2
+      await expect(page.getByTestId('page-indicator')).toHaveText('1 / 2');
+    });
+
+    test('10.6.3 Navigate to next page shows remaining cards', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      // Go to page 2
+      await page.click('button[title="Next page"]');
+      
+      // Should show remaining 5 cards
+      await expect(page.getByTestId('incident-card')).toHaveCount(5);
+      
+      // Page indicator should show 2 / 2
+      await expect(page.getByTestId('page-indicator')).toHaveText('2 / 2');
+    });
+
+    test('10.6.4 Items per page selector works on mobile', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('[data-testid="incident-card"]');
+      
+      // Change to 5 items per page
+      await page.selectOption('select#itemsPerPage', '5');
+      
+      // Should show 5 cards
+      await expect(page.getByTestId('incident-card')).toHaveCount(5);
+      
+      // Page indicator should show 1 / 3
+      await expect(page.getByTestId('page-indicator')).toHaveText('1 / 3');
+    });
+  });
+
+  test.describe('10.7 Mobile Empty and Loading States', () => {
+    
+    test.use({ viewport: { width: 375, height: 667 } });
+
+    test('10.7.1 Empty state shown on mobile when no incidents', async ({ page }) => {
+      await clearAllIncidents();
+      
+      await page.goto('/');
+      
+      // Should show empty state message
+      await expect(page.locator('text=No incidents found')).toBeVisible();
+      
+      // Restore data
+      await resetDatabase();
+    });
+
+    test('10.7.2 Loading state shown on mobile', async ({ page }) => {
+      // Intercept API to delay response
+      await page.route('**/api/incidents', async route => {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await route.continue();
+      });
+      
+      await page.goto('/');
+      
+      // Loading text should be visible
+      await expect(page.locator('text=Loading incidents')).toBeVisible({ timeout: 1000 });
+    });
+
+    test('10.7.3 Error state shown on mobile', async ({ page }) => {
+      // Intercept API to return error
+      await page.route('**/api/incidents', route => {
+        route.fulfill({ 
+          status: 500, 
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'Server error' }) 
+        });
+      });
+      
+      await page.goto('/');
+      
+      // Error message should be visible
+      await expect(page.locator('text=Error')).toBeVisible();
+      await expect(page.locator('text=Try again')).toBeVisible();
+    });
+  });
+});
+
