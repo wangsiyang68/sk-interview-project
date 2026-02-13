@@ -73,11 +73,19 @@ function SortIndicator({ priority, direction }: SortIndicatorProps) {
   );
 }
 
+// Pagination options
+const ITEMS_PER_PAGE_OPTIONS = [5, 10, 25, 50] as const;
+type ItemsPerPage = typeof ITEMS_PER_PAGE_OPTIONS[number];
+
 function IncidentTable({ onEdit, refreshTrigger }: IncidentTableProps) {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [sortKeys, setSortKeys] = useState<SortKey[]>([]);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<ItemsPerPage>(10);
 
   // Fetch incidents on mount and when refreshTrigger changes
   useEffect(() => {
@@ -138,6 +146,40 @@ function IncidentTable({ onEdit, refreshTrigger }: IncidentTableProps) {
       return 0;
     });
   }, [incidents, sortKeys]);
+
+  // Pagination calculations
+  const totalItems = sortedIncidents.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  
+  // Paginated incidents
+  const paginatedIncidents = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return sortedIncidents.slice(startIndex, endIndex);
+  }, [sortedIncidents, currentPage, itemsPerPage]);
+
+  // Reset to page 1 only when items per page changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [itemsPerPage]);
+
+  // Ensure current page is valid (e.g., after deleting the last item on the last page)
+  // This runs when totalPages changes due to data deletion
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  // Pagination handlers
+  const goToFirstPage = (): void => setCurrentPage(1);
+  const goToLastPage = (): void => setCurrentPage(totalPages);
+  const goToPreviousPage = (): void => setCurrentPage(prev => Math.max(1, prev - 1));
+  const goToNextPage = (): void => setCurrentPage(prev => Math.min(totalPages, prev + 1));
+  
+  const handleItemsPerPageChange = (newValue: ItemsPerPage): void => {
+    setItemsPerPage(newValue);
+  };
 
   const fetchIncidents = async (): Promise<void> => {
     try {
@@ -245,7 +287,7 @@ function IncidentTable({ onEdit, refreshTrigger }: IncidentTableProps) {
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-slate-200">
-          {sortedIncidents.map((incident) => (
+          {paginatedIncidents.map((incident) => (
             <tr key={incident.id} className="hover:bg-slate-50 transition-colors">
               <td className="px-4 py-3 text-sm text-slate-900 font-mono">
                 {incident.id}
@@ -292,6 +334,98 @@ function IncidentTable({ onEdit, refreshTrigger }: IncidentTableProps) {
           ))}
         </tbody>
       </table>
+
+      {/* Pagination Controls */}
+      <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+        {/* Items per page selector */}
+        <div className="flex items-center gap-2 text-sm text-slate-600">
+          <label htmlFor="itemsPerPage" className="whitespace-nowrap">
+            Rows per page:
+          </label>
+          <select
+            id="itemsPerPage"
+            value={itemsPerPage}
+            onChange={(e) => handleItemsPerPageChange(Number(e.target.value) as ItemsPerPage)}
+            className="px-2 py-1 border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            {ITEMS_PER_PAGE_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Page info and navigation */}
+        <div className="flex items-center gap-2">
+          {/* Page info */}
+          <span className="text-sm text-slate-600 whitespace-nowrap" data-testid="pagination-range">
+            {totalItems === 0 ? (
+              '0 items'
+            ) : (
+              <>
+                {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems}
+              </>
+            )}
+          </span>
+
+          {/* Navigation buttons */}
+          <div className="flex items-center gap-1">
+            {/* First page */}
+            <button
+              onClick={goToFirstPage}
+              disabled={currentPage === 1}
+              className="p-1.5 rounded-md text-slate-600 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+              title="First page"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+              </svg>
+            </button>
+
+            {/* Previous page */}
+            <button
+              onClick={goToPreviousPage}
+              disabled={currentPage === 1}
+              className="p-1.5 rounded-md text-slate-600 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+              title="Previous page"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+
+            {/* Page indicator */}
+            <span className="px-3 py-1 text-sm font-medium text-slate-700" data-testid="page-indicator">
+              {currentPage} / {totalPages || 1}
+            </span>
+
+            {/* Next page */}
+            <button
+              onClick={goToNextPage}
+              disabled={currentPage === totalPages || totalPages === 0}
+              className="p-1.5 rounded-md text-slate-600 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+              title="Next page"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+
+            {/* Last page */}
+            <button
+              onClick={goToLastPage}
+              disabled={currentPage === totalPages || totalPages === 0}
+              className="p-1.5 rounded-md text-slate-600 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+              title="Last page"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
