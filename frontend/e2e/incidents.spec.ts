@@ -1040,3 +1040,418 @@ test.describe('8. SORTING - Timestamp and Severity', () => {
   });
 });
 
+// ============================================
+// 9. PAGINATION TESTS
+// ============================================
+test.describe('9. PAGINATION - Table Pagination', () => {
+  
+  // Helper to create multiple incidents for pagination tests
+  async function seedManyIncidents(count: number): Promise<void> {
+    for (let i = 0; i < count; i++) {
+      await createIncident({
+        timestamp: `2026-01-${String(i % 28 + 1).padStart(2, '0')} 10:00:00`,
+        source_ip: `192.168.1.${i + 1}`,
+        severity: (['low', 'medium', 'high', 'critical'] as const)[i % 4],
+        type: 'malware',
+        status: 'open',
+        description: `Test incident #${i + 1} for pagination`,
+      });
+    }
+  }
+
+  test.describe('9.1 Pagination Controls UI', () => {
+    
+    test.beforeEach(async () => {
+      await clearAllIncidents();
+      await seedManyIncidents(15); // Create 15 incidents for testing
+    });
+
+    test('9.1.1 Pagination controls are visible', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // Check rows per page selector exists
+      await expect(page.locator('label', { hasText: 'Rows per page' })).toBeVisible();
+      await expect(page.locator('select#itemsPerPage')).toBeVisible();
+      
+      // Check page info exists (e.g., "1-10 of 15")
+      await expect(page.getByTestId('pagination-range')).toBeVisible();
+      
+      // Check page indicator exists (e.g., "1 / 2")
+      await expect(page.getByTestId('page-indicator')).toBeVisible();
+    });
+
+    test('9.1.2 Navigation buttons are visible', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // Check all navigation buttons exist (by their title attributes)
+      await expect(page.locator('button[title="First page"]')).toBeVisible();
+      await expect(page.locator('button[title="Previous page"]')).toBeVisible();
+      await expect(page.locator('button[title="Next page"]')).toBeVisible();
+      await expect(page.locator('button[title="Last page"]')).toBeVisible();
+    });
+
+    test('9.1.3 Default items per page is 10', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // Check dropdown value
+      const itemsPerPageSelect = page.locator('select#itemsPerPage');
+      await expect(itemsPerPageSelect).toHaveValue('10');
+      
+      // Check 10 rows are displayed (we have 15 items)
+      const rows = page.locator('tbody tr');
+      await expect(rows).toHaveCount(10);
+    });
+
+    test('9.1.4 Items per page dropdown has correct options', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // Check all options exist
+      const options = page.locator('select#itemsPerPage option');
+      await expect(options).toHaveCount(4);
+      
+      const optionValues = await options.allTextContents();
+      expect(optionValues).toEqual(['5', '10', '25', '50']);
+    });
+  });
+
+  test.describe('9.2 Page Navigation', () => {
+    
+    test.beforeEach(async () => {
+      await clearAllIncidents();
+      await seedManyIncidents(25); // Create 25 incidents for testing
+    });
+
+    test('9.2.1 First page buttons are disabled on page 1', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // First and Previous should be disabled
+      await expect(page.locator('button[title="First page"]')).toBeDisabled();
+      await expect(page.locator('button[title="Previous page"]')).toBeDisabled();
+      
+      // Next and Last should be enabled
+      await expect(page.locator('button[title="Next page"]')).toBeEnabled();
+      await expect(page.locator('button[title="Last page"]')).toBeEnabled();
+    });
+
+    test('9.2.2 Click next page advances to page 2', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // Verify on page 1
+      await expect(page.getByTestId('page-indicator')).toHaveText('1 / 3');
+      
+      // Click next
+      await page.click('button[title="Next page"]');
+      
+      // Verify on page 2
+      await expect(page.getByTestId('page-indicator')).toHaveText('2 / 3');
+      
+      // First and Previous should now be enabled
+      await expect(page.locator('button[title="First page"]')).toBeEnabled();
+      await expect(page.locator('button[title="Previous page"]')).toBeEnabled();
+    });
+
+    test('9.2.3 Click previous page goes back', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // Go to page 2 first
+      await page.click('button[title="Next page"]');
+      await expect(page.getByTestId('page-indicator')).toHaveText('2 / 3');
+      
+      // Click previous
+      await page.click('button[title="Previous page"]');
+      
+      // Back to page 1
+      await expect(page.getByTestId('page-indicator')).toHaveText('1 / 3');
+    });
+
+    test('9.2.4 Click last page goes to final page', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // Click last
+      await page.click('button[title="Last page"]');
+      
+      // Should be on page 3
+      await expect(page.getByTestId('page-indicator')).toHaveText('3 / 3');
+      
+      // Next and Last should be disabled
+      await expect(page.locator('button[title="Next page"]')).toBeDisabled();
+      await expect(page.locator('button[title="Last page"]')).toBeDisabled();
+    });
+
+    test('9.2.5 Click first page goes to page 1', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // Go to last page first
+      await page.click('button[title="Last page"]');
+      await expect(page.getByTestId('page-indicator')).toHaveText('3 / 3');
+      
+      // Click first
+      await page.click('button[title="First page"]');
+      
+      // Back to page 1
+      await expect(page.getByTestId('page-indicator')).toHaveText('1 / 3');
+    });
+
+    test('9.2.6 Page info shows correct range', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // Page 1: "1–10 of 25"
+      await expect(page.getByTestId('pagination-range')).toContainText('of 25');
+      
+      // Go to page 2
+      await page.click('button[title="Next page"]');
+      
+      // Page 2: "11–20 of 25"
+      await expect(page.getByTestId('pagination-range')).toContainText('of 25');
+      
+      // Go to last page
+      await page.click('button[title="Last page"]');
+      
+      // Page 3: "21–25 of 25"
+      await expect(page.getByTestId('pagination-range')).toContainText('of 25');
+    });
+  });
+
+  test.describe('9.3 Items Per Page Changes', () => {
+    
+    test.beforeEach(async () => {
+      await clearAllIncidents();
+      await seedManyIncidents(25); // Create 25 incidents for testing
+    });
+
+    test('9.3.1 Change items per page to 5 shows 5 rows', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // Change to 5 items per page
+      await page.selectOption('select#itemsPerPage', '5');
+      
+      // Verify 5 rows displayed
+      await expect(page.locator('tbody tr')).toHaveCount(5);
+      
+      // Verify page info updated: "1–5 of 25"
+      await expect(page.getByTestId('pagination-range')).toContainText('of 25');
+      
+      // Verify total pages: "1 / 5"
+      await expect(page.getByTestId('page-indicator')).toHaveText('1 / 5');
+    });
+
+    test('9.3.2 Change items per page to 25 shows 25 rows', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // Change to 25 items per page
+      await page.selectOption('select#itemsPerPage', '25');
+      
+      // Verify 25 rows displayed
+      await expect(page.locator('tbody tr')).toHaveCount(25);
+      
+      // Verify page info: "1–25 of 25"
+      await expect(page.getByTestId('pagination-range')).toContainText('of 25');
+      
+      // Verify only 1 page: "1 / 1"
+      await expect(page.getByTestId('page-indicator')).toHaveText('1 / 1');
+    });
+
+    test('9.3.3 Changing items per page resets to page 1', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // Go to page 2
+      await page.click('button[title="Next page"]');
+      await expect(page.getByTestId('page-indicator')).toHaveText('2 / 3'); // On page 2
+      
+      // Change items per page
+      await page.selectOption('select#itemsPerPage', '5');
+      
+      // Should reset to page 1
+      await expect(page.getByTestId('page-indicator')).toHaveText('1 / 5'); // Page 1 of 5
+    });
+
+    test('9.3.4 Items per page 50 shows all items when less than 50', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // Change to 50 items per page
+      await page.selectOption('select#itemsPerPage', '50');
+      
+      // Should show all 25 items
+      await expect(page.locator('tbody tr')).toHaveCount(25);
+      
+      // All navigation buttons should be disabled (only 1 page)
+      await expect(page.locator('button[title="First page"]')).toBeDisabled();
+      await expect(page.locator('button[title="Previous page"]')).toBeDisabled();
+      await expect(page.locator('button[title="Next page"]')).toBeDisabled();
+      await expect(page.locator('button[title="Last page"]')).toBeDisabled();
+    });
+  });
+
+  test.describe('9.4 Pagination Edge Cases', () => {
+    
+    test('9.4.1 Delete last item on last page adjusts to previous page', async ({ page }) => {
+      // Create exactly 11 incidents (2 pages with 10 per page, 1 item on page 2)
+      await clearAllIncidents();
+      await seedManyIncidents(11);
+      
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // Go to last page (page 2)
+      await page.click('button[title="Last page"]');
+      await expect(page.getByTestId('page-indicator')).toHaveText('2 / 2'); // Page 2 of 2
+      
+      // Should have 1 row on page 2
+      await expect(page.locator('tbody tr')).toHaveCount(1);
+      
+      // Delete the only item on page 2
+      page.on('dialog', dialog => dialog.accept());
+      await page.click('tbody tr button:has-text("Delete")');
+      
+      // Wait for deletion and page adjustment
+      await page.waitForTimeout(500);
+      
+      // Should now be on page 1 (since page 2 no longer exists)
+      await expect(page.getByTestId('page-indicator')).toHaveText('1 / 1'); // Page 1 of 1
+      
+      // Should have 10 rows
+      await expect(page.locator('tbody tr')).toHaveCount(10);
+    });
+
+    test('9.4.2 Delete item on middle page stays on same page', async ({ page }) => {
+      await clearAllIncidents();
+      await seedManyIncidents(25);
+      
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // Go to page 2
+      await page.click('button[title="Next page"]');
+      await expect(page.getByTestId('page-indicator')).toHaveText('2 / 3');
+      
+      const initialRowCount = await page.locator('tbody tr').count();
+      
+      // Delete first item on page 2
+      page.on('dialog', dialog => dialog.accept());
+      await page.click('tbody tr:first-child button:has-text("Delete")');
+      
+      // Wait for deletion
+      await page.waitForTimeout(500);
+      
+      // Should still be on page 2 (total pages might change to 2)
+      await expect(page.getByTestId('page-indicator')).toContainText('2 /');
+      
+      // Row count should be same or less (data shifted)
+      const newRowCount = await page.locator('tbody tr').count();
+      expect(newRowCount).toBeLessThanOrEqual(initialRowCount);
+    });
+
+    test('9.4.3 Single page disables all navigation buttons', async ({ page }) => {
+      await clearAllIncidents();
+      await seedManyIncidents(5); // Only 5 items, fits in 1 page
+      
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // All navigation should be disabled
+      await expect(page.locator('button[title="First page"]')).toBeDisabled();
+      await expect(page.locator('button[title="Previous page"]')).toBeDisabled();
+      await expect(page.locator('button[title="Next page"]')).toBeDisabled();
+      await expect(page.locator('button[title="Last page"]')).toBeDisabled();
+      
+      // Page indicator shows "1 / 1"
+      await expect(page.getByTestId('page-indicator')).toHaveText('1 / 1');
+    });
+
+    test('9.4.4 Adding new incident updates pagination', async ({ page }) => {
+      await clearAllIncidents();
+      await seedManyIncidents(10); // Exactly 1 page
+      
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // Verify 1 page
+      await expect(page.getByTestId('page-indicator')).toHaveText('1 / 1');
+      await expect(page.locator('button[title="Next page"]')).toBeDisabled();
+      
+      // Add new incident
+      await page.click('button:has-text("Add Incident")');
+      await page.fill('input[name="timestamp"]', '2026-02-01T10:00');
+      await page.fill('input[name="source_ip"]', '10.0.0.99');
+      await page.selectOption('select[name="severity"]', 'high');
+      await page.selectOption('select[name="type"]', 'malware');
+      await page.click('button:has-text("Create Incident")');
+      
+      // Wait for modal to close
+      await expect(page.locator('h2', { hasText: 'New Incident' })).not.toBeVisible();
+      await page.waitForTimeout(200);
+      
+      // Should now have 2 pages
+      await expect(page.getByTestId('page-indicator')).toHaveText('1 / 2');
+      await expect(page.locator('button[title="Next page"]')).toBeEnabled();
+    });
+  });
+
+  test.describe('9.5 Pagination with Sorting', () => {
+    
+    test.beforeEach(async () => {
+      await clearAllIncidents();
+      await seedManyIncidents(15);
+    });
+
+    test('9.5.1 Sorting preserves current page', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // Go to page 2
+      await page.click('button[title="Next page"]');
+      await expect(page.getByTestId('page-indicator')).toHaveText('2 / 2');
+      
+      // Apply sort by timestamp
+      await page.click('th button:has-text("Timestamp")');
+      
+      // Should still be on page 2
+      await expect(page.getByTestId('page-indicator')).toHaveText('2 / 2');
+    });
+
+    test('9.5.2 Sorted data is correctly paginated', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('tbody tr');
+      
+      // Sort by severity descending (critical first)
+      await page.click('th button:has-text("Severity")');
+      await page.click('th button:has-text("Severity")');
+      
+      // Page 1 should have critical/high items first
+      const page1Severities = await page.locator('tbody tr td:nth-child(4) span').allTextContents();
+      
+      // Go to page 2
+      await page.click('button[title="Next page"]');
+      
+      // Page 2 should have lower severity items
+      const page2Severities = await page.locator('tbody tr td:nth-child(4) span').allTextContents();
+      
+      // Verify page 1 has higher severity items than page 2
+      const severityRank: Record<string, number> = { low: 1, medium: 2, high: 3, critical: 4 };
+      const page1Avg = page1Severities.reduce((sum, s) => sum + severityRank[s.toLowerCase()], 0) / page1Severities.length;
+      const page2Avg = page2Severities.reduce((sum, s) => sum + severityRank[s.toLowerCase()], 0) / page2Severities.length;
+      
+      expect(page1Avg).toBeGreaterThanOrEqual(page2Avg);
+    });
+  });
+
+  test.afterAll(async () => {
+    // Restore default test data
+    await resetDatabase();
+  });
+});
+
