@@ -1,7 +1,7 @@
 // e2e/incidents.spec.ts
 
 import { test, expect, Page, Dialog } from '@playwright/test';
-import { resetDatabase, createIncident, clearAllIncidents } from './helpers/api';
+import { resetDatabase, createIncident, clearAllIncidents, seedTestData } from './helpers/api';
 
 // NOTE: Remove .js extension from import (TypeScript resolves .ts automatically)
 
@@ -668,6 +668,375 @@ test.describe('7. Error Handling', () => {
     // Should now show data
     await expect(page.locator('table')).toBeVisible();
     await expect(page.locator('tbody tr').first()).toBeVisible();
+  });
+});
+
+// ============================================
+// 8. SORTING TESTS - Timestamp and Severity
+// ============================================
+test.describe('8. SORTING - Timestamp and Severity', () => {
+  
+  // Helper to get severity rank for comparison
+  const severityRank: Record<string, number> = {
+    low: 1,
+    medium: 2,
+    high: 3,
+    critical: 4,
+  };
+
+  // Helper to extract timestamps from table
+  async function getTimestamps(page: Page): Promise<Date[]> {
+    const cells = await page.locator('tbody tr td:nth-child(2)').allTextContents();
+    return cells.map(text => new Date(text.trim()));
+  }
+
+  // Helper to extract severities from table
+  async function getSeverities(page: Page): Promise<string[]> {
+    const cells = await page.locator('tbody tr td:nth-child(4) span').allTextContents();
+    return cells.map(text => text.trim().toLowerCase());
+  }
+
+  test.beforeEach(async () => {
+    // Clear and create specific test data for sorting tests
+    await clearAllIncidents();
+    
+    // Create incidents with varied timestamps and severities for sorting tests
+    await createIncident({
+      timestamp: '2026-01-15 10:00:00',
+      source_ip: '192.168.1.1',
+      severity: 'critical',
+      type: 'malware',
+      status: 'open',
+      description: 'Incident A - Critical, Jan 15',
+    });
+    await createIncident({
+      timestamp: '2026-01-10 10:00:00',
+      source_ip: '192.168.1.2',
+      severity: 'low',
+      type: 'phishing',
+      status: 'open',
+      description: 'Incident B - Low, Jan 10',
+    });
+    await createIncident({
+      timestamp: '2026-01-20 10:00:00',
+      source_ip: '192.168.1.3',
+      severity: 'high',
+      type: 'brute_force',
+      status: 'open',
+      description: 'Incident C - High, Jan 20',
+    });
+    await createIncident({
+      timestamp: '2026-01-12 10:00:00',
+      source_ip: '192.168.1.4',
+      severity: 'medium',
+      type: 'unauthorized_access',
+      status: 'open',
+      description: 'Incident D - Medium, Jan 12',
+    });
+    // Add incidents with same timestamp but different severities for nested sort tests
+    await createIncident({
+      timestamp: '2026-01-18 10:00:00',
+      source_ip: '192.168.1.5',
+      severity: 'critical',
+      type: 'malware',
+      status: 'open',
+      description: 'Incident E - Critical, Jan 18',
+    });
+    await createIncident({
+      timestamp: '2026-01-18 10:00:00',
+      source_ip: '192.168.1.6',
+      severity: 'low',
+      type: 'phishing',
+      status: 'open',
+      description: 'Incident F - Low, Jan 18',
+    });
+  });
+
+  test.afterAll(async () => {
+    // Restore default test data
+    await resetDatabase();
+  });
+
+  test('8.1 Sortable column headers are clickable', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('tbody tr');
+    
+    // Check Timestamp header has a clickable button
+    const timestampButton = page.locator('th button', { hasText: 'Timestamp' });
+    await expect(timestampButton).toBeVisible();
+    
+    // Check Severity header has a clickable button
+    const severityButton = page.locator('th button', { hasText: 'Severity' });
+    await expect(severityButton).toBeVisible();
+  });
+
+  test('8.2 Sort indicator shows on sortable columns', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('tbody tr');
+    
+    // Initially should show unsorted indicator (⇅)
+    const timestampHeader = page.locator('th button', { hasText: 'Timestamp' });
+    await expect(timestampHeader).toContainText('⇅');
+  });
+
+  test('8.3 Click timestamp header sorts ascending', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('tbody tr');
+    
+    // Click timestamp header
+    await page.click('th button:has-text("Timestamp")');
+    
+    // Wait for sort to apply
+    await page.waitForTimeout(100);
+    
+    // Get timestamps and verify ascending order
+    const timestamps = await getTimestamps(page);
+    for (let i = 1; i < timestamps.length; i++) {
+      expect(timestamps[i].getTime()).toBeGreaterThanOrEqual(timestamps[i - 1].getTime());
+    }
+    
+    // Check ascending indicator is shown
+    const timestampHeader = page.locator('th button', { hasText: 'Timestamp' });
+    await expect(timestampHeader).toContainText('▲');
+    await expect(timestampHeader).toContainText('1');
+  });
+
+  test('8.4 Click timestamp header twice sorts descending', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('tbody tr');
+    
+    // Click timestamp header twice
+    await page.click('th button:has-text("Timestamp")');
+    await page.click('th button:has-text("Timestamp")');
+    
+    // Wait for sort to apply
+    await page.waitForTimeout(100);
+    
+    // Get timestamps and verify descending order
+    const timestamps = await getTimestamps(page);
+    for (let i = 1; i < timestamps.length; i++) {
+      expect(timestamps[i].getTime()).toBeLessThanOrEqual(timestamps[i - 1].getTime());
+    }
+    
+    // Check descending indicator is shown
+    const timestampHeader = page.locator('th button', { hasText: 'Timestamp' });
+    await expect(timestampHeader).toContainText('▼');
+  });
+
+  test('8.5 Click timestamp header three times removes sort', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('tbody tr');
+    
+    // Click timestamp header three times
+    await page.click('th button:has-text("Timestamp")');
+    await page.click('th button:has-text("Timestamp")');
+    await page.click('th button:has-text("Timestamp")');
+    
+    // Wait for sort to clear
+    await page.waitForTimeout(100);
+    
+    // Check unsorted indicator is back
+    const timestampHeader = page.locator('th button', { hasText: 'Timestamp' });
+    await expect(timestampHeader).toContainText('⇅');
+  });
+
+  test('8.6 Click severity header sorts ascending (low to critical)', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('tbody tr');
+    
+    // Click severity header
+    await page.click('th button:has-text("Severity")');
+    
+    // Wait for sort to apply
+    await page.waitForTimeout(100);
+    
+    // Get severities and verify ascending order
+    const severities = await getSeverities(page);
+    for (let i = 1; i < severities.length; i++) {
+      expect(severityRank[severities[i]]).toBeGreaterThanOrEqual(severityRank[severities[i - 1]]);
+    }
+    
+    // Check ascending indicator is shown
+    const severityHeader = page.locator('th button', { hasText: 'Severity' });
+    await expect(severityHeader).toContainText('▲');
+    await expect(severityHeader).toContainText('1');
+  });
+
+  test('8.7 Click severity header twice sorts descending (critical to low)', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('tbody tr');
+    
+    // Click severity header twice
+    await page.click('th button:has-text("Severity")');
+    await page.click('th button:has-text("Severity")');
+    
+    // Wait for sort to apply
+    await page.waitForTimeout(100);
+    
+    // Get severities and verify descending order
+    const severities = await getSeverities(page);
+    for (let i = 1; i < severities.length; i++) {
+      expect(severityRank[severities[i]]).toBeLessThanOrEqual(severityRank[severities[i - 1]]);
+    }
+    
+    // Check descending indicator is shown
+    const severityHeader = page.locator('th button', { hasText: 'Severity' });
+    await expect(severityHeader).toContainText('▼');
+  });
+
+  test('8.8 Nested sort: timestamp primary, severity secondary', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('tbody tr');
+    
+    // First click severity (becomes primary)
+    await page.click('th button:has-text("Severity")');
+    
+    // Then click timestamp (becomes primary, severity becomes secondary)
+    await page.click('th button:has-text("Timestamp")');
+    
+    // Wait for sort to apply
+    await page.waitForTimeout(100);
+    
+    // Check priority indicators
+    const timestampHeader = page.locator('th button', { hasText: 'Timestamp' });
+    const severityHeader = page.locator('th button', { hasText: 'Severity' });
+    
+    await expect(timestampHeader).toContainText('1'); // Primary
+    await expect(severityHeader).toContainText('2'); // Secondary
+    
+    // Verify timestamps are in ascending order
+    const timestamps = await getTimestamps(page);
+    for (let i = 1; i < timestamps.length; i++) {
+      expect(timestamps[i].getTime()).toBeGreaterThanOrEqual(timestamps[i - 1].getTime());
+    }
+  });
+
+  test('8.9 Nested sort: severity primary, timestamp secondary', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('tbody tr');
+    
+    // First click timestamp (becomes primary)
+    await page.click('th button:has-text("Timestamp")');
+    
+    // Then click severity (becomes primary, timestamp becomes secondary)
+    await page.click('th button:has-text("Severity")');
+    
+    // Wait for sort to apply
+    await page.waitForTimeout(100);
+    
+    // Check priority indicators
+    const timestampHeader = page.locator('th button', { hasText: 'Timestamp' });
+    const severityHeader = page.locator('th button', { hasText: 'Severity' });
+    
+    await expect(severityHeader).toContainText('1'); // Primary
+    await expect(timestampHeader).toContainText('2'); // Secondary
+    
+    // Verify severities are in ascending order
+    const severities = await getSeverities(page);
+    for (let i = 1; i < severities.length; i++) {
+      expect(severityRank[severities[i]]).toBeGreaterThanOrEqual(severityRank[severities[i - 1]]);
+    }
+  });
+
+  test('8.10 Nested sort correctly breaks ties', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('tbody tr');
+    
+    // Sort by timestamp first, then severity
+    // This means: severity is primary, timestamp is secondary (tie-breaker)
+    await page.click('th button:has-text("Timestamp")');
+    await page.click('th button:has-text("Severity")');
+    
+    // Wait for sort to apply
+    await page.waitForTimeout(100);
+    
+    // Get all row data
+    const rows = page.locator('tbody tr');
+    const rowCount = await rows.count();
+    
+    const rowData: Array<{ severity: string; timestamp: Date }> = [];
+    for (let i = 0; i < rowCount; i++) {
+      const severity = await rows.nth(i).locator('td:nth-child(4) span').textContent();
+      const timestampText = await rows.nth(i).locator('td:nth-child(2)').textContent();
+      rowData.push({
+        severity: severity?.trim().toLowerCase() ?? '',
+        timestamp: new Date(timestampText?.trim() ?? ''),
+      });
+    }
+    
+    // Verify: primary sort by severity, secondary by timestamp
+    for (let i = 1; i < rowData.length; i++) {
+      const prevRank = severityRank[rowData[i - 1].severity];
+      const currRank = severityRank[rowData[i].severity];
+      
+      if (prevRank === currRank) {
+        // Same severity - should be sorted by timestamp (secondary sort)
+        expect(rowData[i].timestamp.getTime()).toBeGreaterThanOrEqual(
+          rowData[i - 1].timestamp.getTime()
+        );
+      } else {
+        // Different severity - should follow primary sort
+        expect(currRank).toBeGreaterThanOrEqual(prevRank);
+      }
+    }
+  });
+
+  test('8.11 Clicking secondary sort promotes it to primary', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('tbody tr');
+    
+    // Set up: timestamp primary, severity secondary
+    await page.click('th button:has-text("Severity")');
+    await page.click('th button:has-text("Timestamp")');
+    
+    // Verify initial state
+    let timestampHeader = page.locator('th button', { hasText: 'Timestamp' });
+    let severityHeader = page.locator('th button', { hasText: 'Severity' });
+    await expect(timestampHeader).toContainText('1');
+    await expect(severityHeader).toContainText('2');
+    
+    // Click severity (the secondary) - should promote it to primary
+    await page.click('th button:has-text("Severity")');
+    
+    // Wait for update
+    await page.waitForTimeout(100);
+    
+    // Verify severity is now primary, timestamp is secondary
+    timestampHeader = page.locator('th button', { hasText: 'Timestamp' });
+    severityHeader = page.locator('th button', { hasText: 'Severity' });
+    await expect(severityHeader).toContainText('1');
+    await expect(timestampHeader).toContainText('2');
+  });
+
+  test('8.12 Sort persists after adding new incident', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('tbody tr');
+    
+    // Sort by severity descending
+    await page.click('th button:has-text("Severity")');
+    await page.click('th button:has-text("Severity")');
+    
+    // Add a new incident
+    await page.click('button:has-text("Add Incident")');
+    await page.fill('input[name="timestamp"]', '2026-02-01T10:00');
+    await page.fill('input[name="source_ip"]', '10.0.0.99');
+    await page.selectOption('select[name="severity"]', 'medium');
+    await page.selectOption('select[name="type"]', 'malware');
+    await page.click('button:has-text("Create Incident")');
+    
+    // Wait for modal to close and table to update
+    await expect(page.locator('h2', { hasText: 'New Incident' })).not.toBeVisible();
+    await page.waitForTimeout(200);
+    
+    // Verify sort indicator still shows descending
+    const severityHeader = page.locator('th button', { hasText: 'Severity' });
+    await expect(severityHeader).toContainText('▼');
+    
+    // Verify data is still sorted
+    const severities = await getSeverities(page);
+    for (let i = 1; i < severities.length; i++) {
+      expect(severityRank[severities[i]]).toBeLessThanOrEqual(severityRank[severities[i - 1]]);
+    }
   });
 });
 
