@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { getAllIncidents, deleteIncident } from '../services/incidentService';
 import type { Incident, Severity, Status } from '../types';
 
@@ -7,6 +7,23 @@ interface IncidentTableProps {
   onEdit: (incident: Incident) => void;
   refreshTrigger: number;
 }
+
+// Sortable columns type
+type SortableColumn = 'timestamp' | 'severity';
+type SortDirection = 'asc' | 'desc';
+
+interface SortKey {
+  column: SortableColumn;
+  direction: SortDirection;
+}
+
+// Severity ranking for sorting (higher = more severe)
+const severityRank: Record<Severity, number> = {
+  low: 1,
+  medium: 2,
+  high: 3,
+  critical: 4,
+};
 
 // Type-safe severity color mapping
 const severityColors: Record<Severity, string> = {
@@ -29,15 +46,98 @@ const formatTimestamp = (timestamp: string): string => {
   return new Date(timestamp).toLocaleString();
 };
 
+// Sort indicator component
+interface SortIndicatorProps {
+  priority: number | null;
+  direction: SortDirection | null;
+}
+
+function SortIndicator({ priority, direction }: SortIndicatorProps) {
+  if (priority === null || direction === null) {
+    // Show subtle indicator that column is sortable
+    return (
+      <span className="text-slate-300 group-hover:text-slate-400 transition-colors">
+        ⇅
+      </span>
+    );
+  }
+
+  const arrow = direction === 'asc' ? '▲' : '▼';
+  const isPrimary = priority === 1;
+
+  return (
+    <span className={`flex items-center gap-0.5 ${isPrimary ? 'text-slate-900' : 'text-slate-400'}`}>
+      <span className="text-xs">{arrow}</span>
+      <span className="text-[10px] font-normal">{priority}</span>
+    </span>
+  );
+}
+
 function IncidentTable({ onEdit, refreshTrigger }: IncidentTableProps) {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [sortKeys, setSortKeys] = useState<SortKey[]>([]);
 
   // Fetch incidents on mount and when refreshTrigger changes
   useEffect(() => {
     fetchIncidents();
   }, [refreshTrigger]);
+
+  // Handle sort column click
+  const handleSortClick = (column: SortableColumn): void => {
+    setSortKeys((prevKeys): SortKey[] => {
+      const existingIndex = prevKeys.findIndex((k) => k.column === column);
+      
+      if (existingIndex === 0) {
+        // Column is already primary - toggle direction or remove on 3rd state
+        const currentDirection = prevKeys[0].direction;
+        if (currentDirection === 'asc') {
+          // asc -> desc
+          return [{ column, direction: 'desc' as const }, ...prevKeys.slice(1)];
+        } else {
+          // desc -> remove from sort
+          return prevKeys.slice(1);
+        }
+      } else if (existingIndex > 0) {
+        // Column is secondary - promote to primary
+        const promoted = prevKeys[existingIndex];
+        return [{ ...promoted, direction: 'asc' as const }, ...prevKeys.filter((_, i) => i !== existingIndex)];
+      } else {
+        // Column not in sort - add as primary (max 2 sort keys)
+        return [{ column, direction: 'asc' as const }, ...prevKeys].slice(0, 2);
+      }
+    });
+  };
+
+  // Get sort state for a column
+  const getSortState = (column: SortableColumn): { priority: number | null; direction: SortDirection | null } => {
+    const index = sortKeys.findIndex((k) => k.column === column);
+    if (index === -1) return { priority: null, direction: null };
+    return { priority: index + 1, direction: sortKeys[index].direction };
+  };
+
+  // Sort incidents based on current sort keys
+  const sortedIncidents = useMemo(() => {
+    if (sortKeys.length === 0) return incidents;
+
+    return [...incidents].sort((a, b) => {
+      for (const { column, direction } of sortKeys) {
+        let comparison = 0;
+
+        if (column === 'timestamp') {
+          comparison = new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+        } else if (column === 'severity') {
+          comparison = severityRank[a.severity] - severityRank[b.severity];
+        }
+
+        if (comparison !== 0) {
+          return direction === 'asc' ? comparison : -comparison;
+        }
+      }
+      return 0;
+    });
+  }, [incidents, sortKeys]);
 
   const fetchIncidents = async (): Promise<void> => {
     try {
@@ -110,13 +210,25 @@ function IncidentTable({ onEdit, refreshTrigger }: IncidentTableProps) {
               ID
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-              Timestamp
+              <button
+                onClick={() => handleSortClick('timestamp')}
+                className="flex items-center gap-1 hover:text-slate-900 transition-colors group"
+              >
+                <span>Timestamp</span>
+                <SortIndicator {...getSortState('timestamp')} />
+              </button>
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
               Source IP
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-              Severity
+              <button
+                onClick={() => handleSortClick('severity')}
+                className="flex items-center gap-1 hover:text-slate-900 transition-colors group"
+              >
+                <span>Severity</span>
+                <SortIndicator {...getSortState('severity')} />
+              </button>
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
               Type
@@ -133,7 +245,7 @@ function IncidentTable({ onEdit, refreshTrigger }: IncidentTableProps) {
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-slate-200">
-          {incidents.map((incident) => (
+          {sortedIncidents.map((incident) => (
             <tr key={incident.id} className="hover:bg-slate-50 transition-colors">
               <td className="px-4 py-3 text-sm text-slate-900 font-mono">
                 {incident.id}
