@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { getAllIncidents, deleteIncident } from '../services/incidentService';
 import type { Incident, Severity, Status } from '../types';
+import IncidentCard from './IncidentCard';
 
 // Props interface
 interface IncidentTableProps {
@@ -195,11 +196,8 @@ function IncidentTable({ onEdit, refreshTrigger }: IncidentTableProps) {
     }
   };
 
+  // Delete handler - shared by table and cards
   const handleDelete = async (id: number): Promise<void> => {
-    if (!window.confirm('Are you sure you want to delete this incident?')) {
-      return;
-    }
-    
     try {
       await deleteIncident(id);
       // Remove from local state
@@ -244,99 +242,146 @@ function IncidentTable({ onEdit, refreshTrigger }: IncidentTableProps) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200">
-      <table className="min-w-full divide-y divide-slate-200">
-        <thead className="bg-slate-50">
-          <tr>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-              ID
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-              <button
-                onClick={() => handleSortClick('timestamp')}
-                className="flex items-center gap-1 hover:text-slate-900 transition-colors group"
-              >
-                <span>Timestamp</span>
-                <SortIndicator {...getSortState('timestamp')} />
-              </button>
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-              Source IP
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-              <button
-                onClick={() => handleSortClick('severity')}
-                className="flex items-center gap-1 hover:text-slate-900 transition-colors group"
-              >
-                <span>Severity</span>
-                <SortIndicator {...getSortState('severity')} />
-              </button>
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-              Type
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-              Status
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-              Description
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-              Actions
-            </th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-slate-200">
-          {paginatedIncidents.map((incident) => (
-            <tr key={incident.id} className="hover:bg-slate-50 transition-colors">
-              <td className="px-4 py-3 text-sm text-slate-900 font-mono">
-                {incident.id}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">
-                {formatTimestamp(incident.timestamp)}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-900 font-mono">
-                {incident.source_ip}
-              </td>
-              <td className="px-4 py-3">
-                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${severityColors[incident.severity]}`}>
-                  {incident.severity}
-                </span>
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-600">
-                {incident.type}
-              </td>
-              <td className="px-4 py-3">
-                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${statusColors[incident.status]}`}>
-                  {incident.status}
-                </span>
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-600 max-w-xs truncate" title={incident.description || undefined}>
-                {incident.description || '—'}
-              </td>
-              <td className="px-4 py-3 text-sm">
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => onEdit(incident)}
-                    className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(incident.id)}
-                    className="text-red-600 hover:text-red-800 font-medium transition-colors"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </td>
+    <div>
+      {/* Desktop Table View - Hidden on mobile */}
+      <div className="hidden md:block overflow-x-auto rounded-lg border border-slate-200">
+        <table className="min-w-full divide-y divide-slate-200">
+          <thead className="bg-slate-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                ID
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                <button
+                  onClick={() => handleSortClick('timestamp')}
+                  className="flex items-center gap-1 hover:text-slate-900 transition-colors group"
+                >
+                  <span>Timestamp</span>
+                  <SortIndicator {...getSortState('timestamp')} />
+                </button>
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Source IP
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                <button
+                  onClick={() => handleSortClick('severity')}
+                  className="flex items-center gap-1 hover:text-slate-900 transition-colors group"
+                >
+                  <span>Severity</span>
+                  <SortIndicator {...getSortState('severity')} />
+                </button>
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Type
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Status
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Description
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="bg-white divide-y divide-slate-200">
+            {paginatedIncidents.map((incident) => (
+              <tr key={incident.id} className="hover:bg-slate-50 transition-colors">
+                <td className="px-4 py-3 text-sm text-slate-900 font-mono">
+                  {incident.id}
+                </td>
+                <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">
+                  {formatTimestamp(incident.timestamp)}
+                </td>
+                <td className="px-4 py-3 text-sm text-slate-900 font-mono">
+                  {incident.source_ip}
+                </td>
+                <td className="px-4 py-3">
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${severityColors[incident.severity]}`}>
+                    {incident.severity}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-sm text-slate-600">
+                  {incident.type}
+                </td>
+                <td className="px-4 py-3">
+                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${statusColors[incident.status]}`}>
+                    {incident.status}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-sm text-slate-600 max-w-xs truncate" title={incident.description || undefined}>
+                  {incident.description || '—'}
+                </td>
+                <td className="px-4 py-3 text-sm">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => onEdit(incident)}
+                      className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Are you sure you want to delete this incident?')) {
+                          handleDelete(incident.id);
+                        }
+                      }}
+                      className="text-red-600 hover:text-red-800 font-medium transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-      {/* Pagination Controls */}
-      <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+      {/* Mobile Card View - Hidden on desktop */}
+      <div className="block md:hidden space-y-3">
+        {/* Mobile Sort Controls */}
+        <div className="flex items-center gap-2 px-1 pb-2 border-b border-slate-200">
+          <span className="text-xs text-slate-500 uppercase tracking-wide">Sort by:</span>
+          <button
+            onClick={() => handleSortClick('timestamp')}
+            className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors ${
+              getSortState('timestamp').priority !== null
+                ? 'bg-slate-200 text-slate-900'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <span>Time</span>
+            <SortIndicator {...getSortState('timestamp')} />
+          </button>
+          <button
+            onClick={() => handleSortClick('severity')}
+            className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors ${
+              getSortState('severity').priority !== null
+                ? 'bg-slate-200 text-slate-900'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <span>Severity</span>
+            <SortIndicator {...getSortState('severity')} />
+          </button>
+        </div>
+
+        {/* Card List */}
+        {paginatedIncidents.map((incident) => (
+          <IncidentCard
+            key={incident.id}
+            incident={incident}
+            onEdit={onEdit}
+            onDelete={handleDelete}
+          />
+        ))}
+      </div>
+
+      {/* Pagination Controls - Shared between desktop and mobile */}
+      <div className="bg-slate-50 px-4 py-3 mt-4 md:mt-0 md:border-t border border-slate-200 md:rounded-none rounded-lg flex flex-col sm:flex-row items-center justify-between gap-3">
         {/* Items per page selector */}
         <div className="flex items-center gap-2 text-sm text-slate-600">
           <label htmlFor="itemsPerPage" className="whitespace-nowrap">
